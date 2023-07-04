@@ -1,7 +1,9 @@
 package top.way2free.testdemo;
 
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.support.v7.app.AppCompatActivity;
@@ -11,6 +13,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,6 +78,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
+    private void upgrade1() {
+        try {
+            File apkFile = loadApk();
+            PackageInstaller installer = getPackageManager().getPackageInstaller();
+            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_INHERIT_EXISTING);
+            int sessionId = installer.createSession(params);
+            PackageInstaller.Session session = installer.openSession(sessionId);
+            FileInputStream inputStream = new FileInputStream(apkFile.getPath());
+            OutputStream outputStream = session.openWrite("upgrade-session", 0, -1);
+            byte[] buf = new byte[4096];
+            int len;
+            while((len = inputStream.read(buf)) != -1) {
+                outputStream.write(buf, 0, len);
+            }
+            session.fsync(outputStream);
+            outputStream.close();
+            inputStream.close();
+            session.commit(PendingIntent.getBroadcast(this, sessionId, new Intent("android.intent.action.MAIN"), 0).getIntentSender());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private File loadApk() throws IOException {
         InputStream inputStream = getAssets().open("new.apk");
         File cacheFile = new File(getApplicationContext().getFilesDir(), "new.apk");
@@ -103,7 +129,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        upgrade();
+                        upgrade1();
                     }
                 }).start();
             }
